@@ -1,0 +1,21 @@
+srcon (1.0.5)
+  * Everything is rewritten and now uses polling
+
+srcon (1.0.4)
+  * Added command line parameters
+
+srcon (1.0.3)
+  * Changed the prompt.
+  * Improved the recieving algorithm.
+  * Fixed the hanging on connection closure.
+
+srcon (1.0.2)
+  * Added password prompt.
+  * Added confirmation to send 'exit' and 'quit' commands.
+  * Fixed rcon prompt.
+  * Fixed packet receiving.
+
+srcon (1.0.1)
+  * Added line editing and history.
+
+srcon (1.0)
