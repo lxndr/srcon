@@ -1,4 +1,4 @@
-Source Server Remote Console v1.0.3
+Source Server Remote Console v1.0.5
 by Alexander AB (lxndr87i@gmail.com)
 
 This is a simple programm that allows you to connect to
@@ -6,4 +6,7 @@ a valve source engine server with the rcon protocol.
 
 To compile it, just type 'make'
 
-Usage: srcon <host>[:<port>] [<password>]
+Usage: srcon <options> <host>[:<port>] [<password>]
+	-p <password>
+	-v for version information
+	-h for help
