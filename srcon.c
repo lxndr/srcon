@@ -1,10 +1,10 @@
 /*
 
-Source Server Remote Console v1.0.4
+Source Server Remote Console v1.0.5
 by lxndr (lxndr87i@gmail.com)
 GPLv3
 
-Home page: http://code.google.com/p/srcon
+Home page: https://github.com/lxndr/srcon
 
 */
 
@@ -109,7 +109,6 @@ establish_connection (const char *host, uint16_t port)
 }
 
 
-
 static int
 send_packet (int type, const char *cmd)
 {
@@ -125,13 +124,18 @@ send_packet (int type, const char *cmd)
 	* (short *) (data + size + 4) = 0;
 	
 	int ret = send (sock, data, size + 4, 0);
-	if (ret == -1)
+	
+	if (ret == 0) {
+		printf ("Connection closed\n");
+		running = 0;
+	} else if (ret == -1) {
 		printf ("Error while sending: %s\n", strerror (errno));
+		running = 0;
+	}
 	
 	free (data);
 	return ret;
 }
-
 
 
 static int
@@ -155,7 +159,6 @@ recv_packet (int *id, int *type, char *text)
 	free (data);
 	return ret;
 }
-
 
 
 static void
@@ -189,7 +192,6 @@ process_response ()
 }
 
 
-
 static void
 handle_line (char* line)
 {
@@ -215,15 +217,6 @@ handle_line (char* line)
 }
 
 
-
-static void
-handle_signal (int sig)
-{
-	running = 0;
-}
-
-
-
 static void
 print_help ()
 {
@@ -236,7 +229,6 @@ print_help ()
 }
 
 
-
 static void
 print_version ()
 {
@@ -245,15 +237,11 @@ print_version ()
 }
 
 
-
 int
 main (int argc, char **argv)
 {
 	int opt;
 	char *address, *password = NULL;
-	
-	signal (SIGINT, handle_signal);
-	signal (SIGTERM, handle_signal);
 	
 	/* command line setting */
 	while ((opt = getopt (argc, argv, "hvp:")) != -1) {
@@ -295,27 +283,34 @@ main (int argc, char **argv)
 	
 	struct pollfd fds[2] = {
 		{STDIN_FILENO,	POLLIN,	0},
-		{sock,			POLLIN,	0}
+		{sock,		POLLIN,	0}
 	};
 	
 	rl_callback_handler_install (prompt, handle_line);
 	
 	while (running) {
-		int ret = poll (fds, 2, 0);
+		int ret = poll (fds, 2, -1);
 		if (ret > 0) {
-			if (fds[1].revents & POLLIN) {
+			if (fds[1].revents & POLLIN)
 				process_response ();
-			} else if (fds[1].revents > 0) {
-				printf ("fds[1].revents = %d\n", fds[1].revents);
-			}
 			
-			if (fds[0].revents & POLLIN) {
-				rl_callback_read_char ();
-			} else if (fds[0].revents & POLLHUP) {
+			if (fds[1].revents & POLLERR) {
+				rl_print ("POLLERR: An error has occured on the device or stream.\n");
 				running = 0;
 			}
+			
+			if (fds[1].revents & POLLHUP) {
+				rl_print ("POLLHUP: The device has been disconnected.\n");
+				running = 0;
+			}
+			
+			if (fds[0].revents & POLLIN)
+				rl_callback_read_char ();
+			else if (fds[0].revents & POLLHUP)
+				running = 0;
 		} else if (ret == -1) {
-			printf ("poll error: %s\n", strerror (errno));
+			if (ret != EINTR)
+				printf ("A poll error has accured: %s\n", strerror (errno));
 		}
 	}
 	
