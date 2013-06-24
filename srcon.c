@@ -26,8 +26,8 @@ Home page: https://github.com/lxndr/srcon
 
 #define RCON_OUT_AUTH		3
 #define RCON_OUT_EXEC		2
-#define RCON_IN_AUTH			2
-#define RCON_IN_RESPONSE		0
+#define RCON_IN_AUTH		2
+#define RCON_IN_RESPONSE	0
 
 
 static char prompt[256];
@@ -121,7 +121,7 @@ send_packet (int type, const char *cmd)
 	* (int *) (data + 4) = 0;
 	* (int *) (data + 8) = type;
 	memcpy (data + 12, cmd, len);
-	* (short *) (data + size + 4) = 0;
+	* (short *) (data + size + 2) = 0;
 	
 	int ret = send (sock, data, size + 4, 0);
 	
@@ -221,11 +221,11 @@ static void
 print_help ()
 {
 	puts ("Usage: srcon [OPTIONS] HOST[:PORT]\n"
-			"Connect to a Valve Source Server via RCon protocol.\n\n"
-			"Options:\n"
-			"  -p PASSWORD   rcon password\n"
-			"  -h            show this help message and exit\n"
-			"  -v            show version information and exit");
+		"Connect to a Valve Source Server via RCon protocol.\n\n"
+		"Options:\n"
+		"  -p PASSWORD   rcon password\n"
+		"  -h            show this help message and exit\n"
+		"  -v            show version information and exit");
 }
 
 
@@ -233,7 +233,7 @@ static void
 print_version ()
 {
 	puts ("Source Server Remote Console v1.0.5\n"
-			"by Alexander AB (lxndr87i@gmail.com)");
+		"by Alexander AB (lxndr87i@gmail.com)");
 }
 
 
