@@ -242,6 +242,7 @@ main (int argc, char **argv)
 {
 	int opt;
 	char *address, *password = NULL;
+	char *history_file = NULL;
 	
 	/* command line setting */
 	while ((opt = getopt (argc, argv, "hvp:")) != -1) {
@@ -278,6 +279,22 @@ main (int argc, char **argv)
 	sprintf (prompt, "\033[0;31mrcon@\033[0m%s:%d \033[0;31m>\033[0m ",
 		host, port);
 	
+	/* get home directory */
+	char *homedir = getenv ("HOME");
+	if (homedir && *homedir) {
+		const char *fname = "/.srcon_history";
+		size_t len = strlen (homedir);
+		history_file = malloc (len + strlen (fname) + 1);
+		memcpy (history_file, homedir, len + 1);
+		strcat (history_file, fname);
+	}
+	
+	/* initialize readline */
+	using_history ();
+	if (history_file)
+		read_history (history_file);
+	rl_callback_handler_install (prompt, handle_line);
+	
 	/* password packet */
 	send_packet (RCON_OUT_AUTH, password);
 	
@@ -285,8 +302,6 @@ main (int argc, char **argv)
 		{STDIN_FILENO,	POLLIN,	0},
 		{sock,		POLLIN,	0}
 	};
-	
-	rl_callback_handler_install (prompt, handle_line);
 	
 	while (running) {
 		int ret = poll (fds, 2, -1);
@@ -316,6 +331,10 @@ main (int argc, char **argv)
 	
 	rl_clean ();
 	rl_callback_handler_remove ();
+	if (history_file) {
+		write_history (history_file);
+		free (history_file);
+	}
 	
 	puts ("Disconnecting");
 	close (sock);
