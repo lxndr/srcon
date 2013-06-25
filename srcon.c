@@ -33,6 +33,7 @@ Home page: https://github.com/lxndr/srcon
 static char prompt[256];
 static int running = 1;
 static int interactive = 0;
+static int quiet = 0;
 static int sock = 0;
 static char *command = NULL;
 
@@ -66,6 +67,18 @@ rl_print (const char *fmt, ...)
 	free (line);
 }
 
+
+static void
+quiet_print (const char *fmt, ...)
+{
+	if (quiet)
+		return;
+	
+	va_list va;
+	va_start (va, fmt);
+	vprintf (fmt, va);
+	va_end (va);
+}
 
 
 static void
@@ -203,6 +216,12 @@ process_response ()
 static void
 handle_line (char* line)
 {
+	/* FIXME: line == NULL means the end of stdin stream */
+	if (!line) {
+		running = 0;
+		return;
+	}
+	
 	if (*line) {
 		if (strcmp (line, "logout") == 0) {
 			running = 0;
@@ -226,70 +245,9 @@ handle_line (char* line)
 
 
 static void
-print_help ()
+interactive_mode (const char *host, uint16_t port)
 {
-	puts ("Usage: srcon [OPTIONS] HOST[:PORT]\n"
-		"Connect to a Valve Source Server via RCon protocol.\n\n"
-		"Options:\n"
-		"  -p PASSWORD   rcon password\n"
-		"  -h            show this help message and exit\n"
-		"  -v            show version information and exit\n"
-		"  -i            interactive shell mode\n"
-		"  -c            command(s) to send on startup");
-}
-
-
-static void
-print_version ()
-{
-	puts ("Source Server Remote Console v1.0.5\n"
-		"by Alexander AB (lxndr87i@gmail.com)");
-}
-
-
-int
-main (int argc, char **argv)
-{
-	int opt;
-	char *address, *password = NULL;
 	char *history_file = NULL;
-	
-	/* command line setting */
-	while ((opt = getopt (argc, argv, "hvp:c:i")) != -1) {
-		switch (opt) {
-		case 'h':
-			print_help ();
-			return EXIT_SUCCESS;
-		case 'v':
-			print_version ();
-			return EXIT_SUCCESS;
-		case 'p':
-			password = optarg;
-			break;
-		case 'c':
-			command = optarg;
-			break;
-		case 'i':
-			interactive = 1;
-			break;
-		default:
-			print_help ();
-			return EXIT_FAILURE;
-		}
-	}
-	
-	address = argv[optind];
-	if (!address) {
-		print_help ();
-		return EXIT_SUCCESS;
-	}
-	
-	/* connection */
-	char host[128];
-	uint16_t port;
-	parse_address (address, host, 128, &port);
-	if (!establish_connection (host, port))
-		return EXIT_FAILURE;
 	
 	/* form prompt */
 	sprintf (prompt, "\033[0;31mrcon@\033[0m%s:%d \033[0;31m>\033[0m ",
@@ -310,9 +268,6 @@ main (int argc, char **argv)
 	if (history_file)
 		read_history (history_file);
 	rl_callback_handler_install (prompt, handle_line);
-	
-	/* password packet */
-	send_packet (RCON_OUT_AUTH, password);
 	
 	struct pollfd fds[2] = {
 		{STDIN_FILENO,	POLLIN,	0},
@@ -351,6 +306,113 @@ main (int argc, char **argv)
 		write_history (history_file);
 		free (history_file);
 	}
+}
+
+
+static void
+query_mode ()
+{
+	struct pollfd fd = {sock, POLLIN, 0};
+	
+	while (running) {
+		int ret = poll (&fd, 1, -1);
+		if (ret > 0) {
+			if (fd.revents & POLLIN)
+				process_response ();
+			
+			if (fd.revents & POLLERR) {
+				quiet_print ("POLLERR: An error has occured on the device or stream.\n");
+				running = 0;
+			}
+			
+			if (fd.revents & POLLHUP) {
+				quiet_print ("POLLHUP: The device has been disconnected.\n");
+				running = 0;
+			}
+		} else if (ret == -1) {
+			if (ret != EINTR)
+				quiet_print ("A poll error has accured: %s\n", strerror (errno));
+		}
+	}	
+}
+
+
+static void
+print_help ()
+{
+	puts ("Usage: srcon [OPTIONS] HOST[:PORT]\n"
+		"Connect to a Valve Source Server via RCon protocol.\n\n"
+		"Options:\n"
+		"  -p PASSWORD   rcon password\n"
+		"  -h            show this help message and exit\n"
+		"  -v            show version information and exit\n"
+		"  -i            interactive shell mode\n"
+		"  -c            command(s) to send on startup\n"
+		"  -q            only show response");
+}
+
+
+static void
+print_version ()
+{
+	puts ("Source Server Remote Console v1.0.5\n"
+		"by Alexander AB (lxndr87i@gmail.com)");
+}
+
+
+int
+main (int argc, char **argv)
+{
+	int opt;
+	char *address, *password = NULL;
+	
+	/* command line setting */
+	while ((opt = getopt (argc, argv, "hvp:c:iq")) != -1) {
+		switch (opt) {
+		case 'h':
+			print_help ();
+			return EXIT_SUCCESS;
+		case 'v':
+			print_version ();
+			return EXIT_SUCCESS;
+		case 'p':
+			password = optarg;
+			break;
+		case 'c':
+			command = optarg;
+			break;
+		case 'i':
+			interactive = 1;
+			break;
+		case 'q':
+			quiet = 1;
+			break;
+		default:
+			print_help ();
+			return EXIT_FAILURE;
+		}
+	}
+	
+	address = argv[optind];
+	if (!address) {
+		print_help ();
+		return EXIT_SUCCESS;
+	}
+	
+	/* connection */
+	char host[128];
+	uint16_t port;
+	parse_address (address, host, 128, &port);
+	if (!establish_connection (host, port))
+		return EXIT_FAILURE;
+	
+	/* password packet */
+	send_packet (RCON_OUT_AUTH, password);
+	
+	if (interactive)
+		interactive_mode (host, port);
+	else
+		query_mode ();
 	
 	puts ("Disconnecting");
 	close (sock);
