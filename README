@@ -6,7 +6,29 @@ a valve source engine server with the rcon protocol.
 
 To compile it, just type 'make'
 
-Usage: srcon <options> <host>[:<port>] [<password>]
+Usage: srcon <options> <host>[:<port>]
 	-p <password>
 	-v for version information
 	-h for help
+	-c <commands>
+	-i interactive mode
+
+-p <password> is a mandatory option.
+
+If -i is not specified, query mode is active.
+
+You can use -c option and stdin pipe together. Commands from -c option
+are sent first.
+
+Running in interactive mode with a pipe will still send all commands
+from stdin, but will cause srcon to disconnect immediately.
+
+Examples
+	Start as an interactive rcon shell:
+	srcon -i -p example-password example.com:27015
+	
+	Run with commands, for instance in scripts:
+	srcon -c 'sv_cheats 1' -p example-password example.com:27015
+	
+	Run with commands from pipe:
+	cat srcds_work | srcon -p example-password example.com:27015

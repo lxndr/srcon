@@ -9,6 +9,8 @@ Home page: https://github.com/lxndr/srcon
 */
 
 
+#define _GNU_SOURCE
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +32,7 @@ Home page: https://github.com/lxndr/srcon
 #define RCON_IN_RESPONSE	0
 
 
-static char prompt[256];
+static char *prompt = NULL;
 static int running = 1;
 static int interactive = 0;
 static int quiet = 0;
@@ -275,13 +277,17 @@ handle_line (char* line)
 
 
 static void
-interactive_mode (const char *host, uint16_t port)
+form_prompt (const char *host, uint16_t port, const char *color)
+{
+	asprintf (&prompt, "\033[%smrcon@\033[0m%s:%d \033[%sm>\033[0m ",
+		color, host, port, color);
+}
+
+
+static void
+interactive_mode ()
 {
 	char *history_file = NULL;
-	
-	/* form prompt */
-	sprintf (prompt, "\033[0;31mrcon@\033[0m%s:%d \033[0;31m>\033[0m ",
-		host, port);
 	
 	/* history file path */
 	char *homedir = getenv ("HOME");
@@ -394,10 +400,10 @@ int
 main (int argc, char **argv)
 {
 	int opt;
-	char *address, *password = NULL;
+	char *address, *password = NULL, *color = NULL;
 	
 	/* command line setting */
-	while ((opt = getopt (argc, argv, "hvp:c:iq")) != -1) {
+	while ((opt = getopt (argc, argv, "hvp:c:iqt:")) != -1) {
 		switch (opt) {
 		case 'h':
 			print_help ();
@@ -416,6 +422,9 @@ main (int argc, char **argv)
 			break;
 		case 'q':
 			quiet = 1;
+			break;
+		case 't':
+			color = optarg;
 			break;
 		default:
 			print_help ();
@@ -439,10 +448,18 @@ main (int argc, char **argv)
 	/* password packet */
 	send_packet (RCON_OUT_AUTH, password);
 	
-	if (interactive)
-		interactive_mode (host, port);
-	else
+	if (interactive) {
+		if (!color)
+			color = "0;31";
+		
+		form_prompt (host, port, color);
+		interactive_mode ();
+		
+		if (prompt)
+			free (prompt);
+	} else {
 		query_mode ();
+	}
 	
 	quiet_print ("Disconnecting... ");
 	fflush (stdout);
