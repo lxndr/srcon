@@ -12,6 +12,7 @@ Usage: srcon <options> <host>[:<port>]
 	-h for help
 	-c <commands>
 	-i interactive mode
+	-t <color code>
 
 -p <password> is a mandatory option.
 
@@ -19,6 +20,8 @@ If -i is not specified, query mode is active.
 
 You can use -c option and stdin pipe together. Commands from -c option
 are sent first.
+
+Color code is like '0;31', '1;33' and so on, in quotes.
 
 Running in interactive mode with a pipe will still send all commands
 from stdin, but will cause srcon to disconnect immediately.

@@ -4,6 +4,7 @@ srcon (1.0.5)
   * Changed message output
   * Split work to query and interactive (-i) modes
   * Fixed piping
+  * Added color option for interactive mode prompt (-t)
 
 srcon (1.0.4)
   * Added command line parameters
