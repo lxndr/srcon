@@ -32,8 +32,9 @@ Home page: https://github.com/lxndr/srcon
 
 static char prompt[256];
 static int running = 1;
+static int interactive = 0;
 static int sock = 0;
-
+static char *command = NULL;
 
 
 static void
@@ -184,6 +185,13 @@ process_response ()
 			running = 0;
 		} else {
 			rl_print ("Successfully authenticated\n");
+			if (command) {
+				rl_print ("Sending initial commands\n");
+				send_packet (RCON_OUT_EXEC, command);
+				command = NULL;
+				if (!interactive)
+					running = 0;
+			}
 		}
 	} else if (type == RCON_IN_RESPONSE) {
 		if (*text)
@@ -225,7 +233,9 @@ print_help ()
 		"Options:\n"
 		"  -p PASSWORD   rcon password\n"
 		"  -h            show this help message and exit\n"
-		"  -v            show version information and exit");
+		"  -v            show version information and exit\n"
+		"  -i            interactive shell mode\n"
+		"  -c            command(s) to send on startup");
 }
 
 
@@ -245,7 +255,7 @@ main (int argc, char **argv)
 	char *history_file = NULL;
 	
 	/* command line setting */
-	while ((opt = getopt (argc, argv, "hvp:")) != -1) {
+	while ((opt = getopt (argc, argv, "hvp:c:i")) != -1) {
 		switch (opt) {
 		case 'h':
 			print_help ();
@@ -255,6 +265,12 @@ main (int argc, char **argv)
 			return EXIT_SUCCESS;
 		case 'p':
 			password = optarg;
+			break;
+		case 'c':
+			command = optarg;
+			break;
+		case 'i':
+			interactive = 1;
 			break;
 		default:
 			print_help ();
@@ -279,7 +295,7 @@ main (int argc, char **argv)
 	sprintf (prompt, "\033[0;31mrcon@\033[0m%s:%d \033[0;31m>\033[0m ",
 		host, port);
 	
-	/* get home directory */
+	/* history file path */
 	char *homedir = getenv ("HOME");
 	if (homedir && *homedir) {
 		const char *fname = "/.srcon_history";
