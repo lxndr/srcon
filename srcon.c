@@ -98,12 +98,14 @@ parse_address (const char *addr, char *host, int maxhost, uint16_t *port)
 static int
 establish_connection (const char *host, uint16_t port)
 {
-	printf ("Connecting to %s:%d...\n", host, port);
+	quiet_print ("Connecting to %s:%d... ", host, port);
+	fflush (stdout);
 	
 	struct hostent *hp = gethostbyname (host);
 	if (!hp) {
-		printf ("Unknown address %s:%d\n", host, port);
-		return 1;
+		quiet_print ("FAILED!\n");
+		quiet_print ("Unknown address %s:%d\n", host, port);
+		return 0;
 	}
 	
 	struct sockaddr_in addr;
@@ -114,11 +116,12 @@ establish_connection (const char *host, uint16_t port)
 	sock = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	
 	if (connect (sock, (struct sockaddr *) &addr, sizeof (addr)) != 0) {
-		printf ("Could not connet to the server: %s\n", strerror (errno));
+		quiet_print ("FAILED!\n");
+		quiet_print ("Could not connect to the server: %s\n", strerror (errno));
 		return 0;
 	}
 	
-	puts ("Connected");
+	quiet_print ("done.\n");
 	return 1;
 }
 
@@ -138,12 +141,11 @@ send_packet (int type, const char *cmd)
 	* (short *) (data + size + 2) = 0;
 	
 	int ret = send (sock, data, size + 4, 0);
-	
 	if (ret == 0) {
-		printf ("Connection closed\n");
+		quiet_print ("Connection closed\n");
 		running = 0;
 	} else if (ret == -1) {
-		printf ("Error while sending: %s\n", strerror (errno));
+		quiet_print ("Error while sending: %s\n", strerror (errno));
 		running = 0;
 	}
 	
@@ -176,6 +178,40 @@ recv_packet (int *id, int *type, char *text)
 
 
 static void
+on_authentication ()
+{
+	/* send commands specified on command line with (-c option) */
+	if (command) {
+		quiet_print ("Sending commands from option...\n");
+		send_packet (RCON_OUT_EXEC, command);
+		command = NULL;
+	}
+	
+	/* in interactive mode, readline takes care about stdin */
+	if (!interactive) {
+		if (!isatty (fileno(stdin))) { /* pipe is used */
+			quiet_print ("Sending commands from stdin...\n");
+			
+			char line[1024];
+			while (!feof (stdin) && fgets (line, 1024, stdin)) {
+				/* PARANOID: fgets also gets a \n. a few tests showed that
+					servers don't care about it. but just in case, let's remove it*/
+				/* TODO: it would be nice to pack all commands in one or more packets */
+				size_t last = strlen (line) - 1;
+				if (line[last] == '\n')
+					line[last] = 0;
+				send_packet (RCON_OUT_EXEC, line);
+			}
+		}
+		
+		/* currently in query mode we don't receive respond
+			thus no need to continue */
+		running = 0;
+	}
+}
+
+
+static void
 process_response ()
 {
 	int ret, id, type;
@@ -197,14 +233,8 @@ process_response ()
 			rl_print ("Authentication attempt failed\n");
 			running = 0;
 		} else {
-			rl_print ("Successfully authenticated\n");
-			if (command) {
-				rl_print ("Sending initial commands\n");
-				send_packet (RCON_OUT_EXEC, command);
-				command = NULL;
-				if (!interactive)
-					running = 0;
-			}
+			rl_print ("Successfully authenticated.\n");
+			on_authentication ();
 		}
 	} else if (type == RCON_IN_RESPONSE) {
 		if (*text)
@@ -414,8 +444,10 @@ main (int argc, char **argv)
 	else
 		query_mode ();
 	
-	puts ("Disconnecting");
+	quiet_print ("Disconnecting... ");
+	fflush (stdout);
 	close (sock);
+	quiet_print ("done.\n");
 	
 	return EXIT_SUCCESS;
 }

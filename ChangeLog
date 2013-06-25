@@ -1,6 +1,9 @@
 srcon (1.0.5)
   * Everything is rewritten and now uses polling
   * Removed signal handlers
+  * Changed message output
+  * Split work to query and interactive (-i) modes
+  * Fixed piping
 
 srcon (1.0.4)
   * Added command line parameters
