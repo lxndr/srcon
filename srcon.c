@@ -33,6 +33,8 @@ Home page: https://github.com/lxndr/srcon
 #define RCON_ID			0
 #define RCON_END_ID		1
 
+#define EXIT_AUTHFAIL		2
+
 
 static char *prompt = NULL;
 static int running = 1;
@@ -390,12 +392,13 @@ print_help ()
 	puts ("Usage: srcon [OPTIONS] HOST[:PORT]\n"
 		"Connect to a Valve Source Server via RCon protocol.\n\n"
 		"Options:\n"
-		"  -p PASSWORD   rcon password\n"
-		"  -h            show this help message and exit\n"
-		"  -v            show version information and exit\n"
-		"  -i            interactive shell mode\n"
-		"  -c            command(s) to send on startup\n"
-		"  -q            only show response");
+		"  -p <password>  rcon password\n"
+		"  -h             show this help message and exit\n"
+		"  -v             show version information and exit\n"
+		"  -i             interactive shell mode\n"
+		"  -c             command(s) to send on startup\n"
+		"  -t '<color>'   shell prompt color\n"
+		"  -q             only show response");
 }
 
 
@@ -447,6 +450,11 @@ main (int argc, char **argv)
 	if (!address) {
 		print_help ();
 		return EXIT_SUCCESS;
+	}
+	
+	if (!password) {
+		print (quiet, 0, "Password option (-p) requiered\n");
+		return EXIT_AUTHFAIL;
 	}
 	
 	/* connection */
