@@ -2,9 +2,10 @@ srcon (1.0.5)
   * Everything is rewritten and now uses polling
   * Removed signal handlers
   * Changed message output
-  * Split work to query and interactive (-i) modes
+  * Split to two modes - query and interactive (-i)
   * Fixed piping
   * Added color option for interactive mode prompt (-t)
+  * Removed confirm request about exit/quit commands
 
 srcon (1.0.4)
   * Added command line parameters

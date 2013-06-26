@@ -14,7 +14,7 @@ Usage: srcon <options> <host>[:<port>]
 	-i interactive mode
 	-t <color code>
 
--p <password> is a mandatory option.
+Option -p  <password> is mandatory.
 
 If -i is not specified, query mode is active.
 

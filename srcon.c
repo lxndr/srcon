@@ -30,6 +30,8 @@ Home page: https://github.com/lxndr/srcon
 #define RCON_OUT_EXEC		2
 #define RCON_IN_AUTH		2
 #define RCON_IN_RESPONSE	0
+#define RCON_ID			0
+#define RCON_END_ID		1
 
 
 static char *prompt = NULL;
@@ -117,7 +119,7 @@ establish_connection (const char *host, uint16_t port)
 	
 	sock = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	
-	if (connect (sock, (struct sockaddr *) &addr, sizeof (addr)) != 0) {
+	if (connect (sock, (struct sockaddr *) &addr, sizeof (addr)) == -1) {
 		quiet_print ("FAILED!\n");
 		quiet_print ("Could not connect to the server: %s\n", strerror (errno));
 		return 0;
@@ -129,7 +131,7 @@ establish_connection (const char *host, uint16_t port)
 
 
 static int
-send_packet (int type, const char *cmd)
+send_packet (int id, int type, const char *cmd)
 {
 	size_t len = strlen (cmd);
 	int size = len + 10;
@@ -137,7 +139,7 @@ send_packet (int type, const char *cmd)
 	/* form packet data */
 	char *data = malloc (size + 4);
 	* (int *) (data + 0) = size;
-	* (int *) (data + 4) = 0;
+	* (int *) (data + 4) = id;
 	* (int *) (data + 8) = type;
 	memcpy (data + 12, cmd, len);
 	* (short *) (data + size + 2) = 0;
@@ -180,12 +182,12 @@ recv_packet (int *id, int *type, char *text)
 
 
 static void
-on_authentication ()
+on_ready ()
 {
 	/* send commands specified on command line with (-c option) */
 	if (command) {
 		quiet_print ("Sending commands from option...\n");
-		send_packet (RCON_OUT_EXEC, command);
+		send_packet (RCON_ID, RCON_OUT_EXEC, command);
 		command = NULL;
 	}
 	
@@ -197,19 +199,20 @@ on_authentication ()
 			char line[1024];
 			while (!feof (stdin) && fgets (line, 1024, stdin)) {
 				/* PARANOID: fgets also gets a \n. a few tests showed that
-					servers don't care about it. but just in case, let's remove it*/
+					servers don't care about it. but just in case, let's remove it */
 				/* TODO: it would be nice to pack all commands in one or more packets */
 				size_t last = strlen (line) - 1;
 				if (line[last] == '\n')
 					line[last] = 0;
-				send_packet (RCON_OUT_EXEC, line);
+				send_packet (RCON_ID, RCON_OUT_EXEC, line);
 			}
 		}
-		
-		/* currently in query mode we don't receive respond
-			thus no need to continue */
-		running = 0;
 	}
+	
+	/* there's no way to know if a response is a single packet or several.
+		so we send an extra packetwith different ID so we can know
+		where response ends. */
+	send_packet (RCON_END_ID, RCON_OUT_EXEC, "echo end");
 }
 
 
@@ -236,9 +239,14 @@ process_response ()
 			running = 0;
 		} else {
 			rl_print ("Successfully authenticated.\n");
-			on_authentication ();
+			on_ready ();
 		}
 	} else if (type == RCON_IN_RESPONSE) {
+		if (!interactive && id == RCON_END_ID) {
+			running = 0;
+			return;
+		}
+		
 		if (*text)
 			rl_print (text);
 	}
@@ -248,7 +256,8 @@ process_response ()
 static void
 handle_line (char* line)
 {
-	/* FIXME: line == NULL means the end of stdin stream */
+	/* FIXME: line == NULL means the end of stdin stream.
+		this happens when pipe is used in interactive mode. */
 	if (!line) {
 		running = 0;
 		return;
@@ -268,7 +277,7 @@ handle_line (char* line)
 */
 		} else {
 			add_history (line);
-			send_packet (RCON_OUT_EXEC, line);
+			send_packet (RCON_ID, RCON_OUT_EXEC, line);
 		}
 	}
 	
@@ -446,7 +455,7 @@ main (int argc, char **argv)
 		return EXIT_FAILURE;
 	
 	/* password packet */
-	send_packet (RCON_OUT_AUTH, password);
+	send_packet (RCON_ID, RCON_OUT_AUTH, password);
 	
 	if (interactive) {
 		if (!color)
