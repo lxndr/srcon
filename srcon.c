@@ -52,36 +52,38 @@ rl_clean ()
 
 
 static void
-rl_print (const char *fmt, ...)
+print (int quiet, int inside_readline, const char *fmt, ...)
 {
-	int point = rl_point;
-	char *line = rl_copy_text (0, rl_end);
-	rl_clean ();
+	int point;
+	char *line;
 	
-	va_list va;
-	va_start (va, fmt);
-	vprintf (fmt, va);
-	va_end (va);
-	
-	rl_set_prompt (prompt);
-	rl_replace_line (line, 0);
-	rl_point = point;
-	rl_redisplay ();
-	
-	free (line);
-}
-
-
-static void
-quiet_print (const char *fmt, ...)
-{
 	if (quiet)
 		return;
+	if (!interactive)
+		inside_readline = 0;
 	
+	/* save readline state */
+	if (inside_readline) {
+		point = rl_point;
+		line = rl_copy_text (0, rl_end);
+		rl_clean ();
+	}
+	
+	/* print */
 	va_list va;
 	va_start (va, fmt);
 	vprintf (fmt, va);
 	va_end (va);
+	
+	/* restore readline state */
+	if (inside_readline) {
+		rl_set_prompt (prompt);
+		rl_replace_line (line, 0);
+		rl_point = point;
+		rl_redisplay ();
+		
+		free (line);
+	}
 }
 
 
@@ -102,13 +104,13 @@ parse_address (const char *addr, char *host, int maxhost, uint16_t *port)
 static int
 establish_connection (const char *host, uint16_t port)
 {
-	quiet_print ("Connecting to %s:%d... ", host, port);
+	print (quiet, 0, "Connecting to %s:%d... ", host, port);
 	fflush (stdout);
 	
 	struct hostent *hp = gethostbyname (host);
 	if (!hp) {
-		quiet_print ("FAILED!\n");
-		quiet_print ("Unknown address %s:%d\n", host, port);
+		print (quiet, 0, "FAILED!\n");
+		print (quiet, 0, "Unknown address %s:%d\n", host, port);
 		return 0;
 	}
 	
@@ -120,12 +122,12 @@ establish_connection (const char *host, uint16_t port)
 	sock = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	
 	if (connect (sock, (struct sockaddr *) &addr, sizeof (addr)) == -1) {
-		quiet_print ("FAILED!\n");
-		quiet_print ("Could not connect to the server: %s\n", strerror (errno));
+		print (quiet, 0, "FAILED!\n");
+		print (quiet, 0, "Could not connect to the server: %s\n", strerror (errno));
 		return 0;
 	}
 	
-	quiet_print ("done.\n");
+	print (quiet, 0, "done.\n");
 	return 1;
 }
 
@@ -146,10 +148,10 @@ send_packet (int id, int type, const char *cmd)
 	
 	int ret = send (sock, data, size + 4, 0);
 	if (ret == 0) {
-		quiet_print ("Connection closed\n");
+		print (quiet, 0, "Connection closed\n");
 		running = 0;
 	} else if (ret == -1) {
-		quiet_print ("Error while sending: %s\n", strerror (errno));
+		print (quiet, 0, "Error while sending: %s\n", strerror (errno));
 		running = 0;
 	}
 	
@@ -186,7 +188,7 @@ on_ready ()
 {
 	/* send commands specified on command line with (-c option) */
 	if (command) {
-		quiet_print ("Sending commands from option...\n");
+		print (quiet, 0, "Sending commands from option...\n");
 		send_packet (RCON_ID, RCON_OUT_EXEC, command);
 		command = NULL;
 	}
@@ -194,7 +196,7 @@ on_ready ()
 	/* in interactive mode, readline takes care about stdin */
 	if (!interactive) {
 		if (!isatty (fileno(stdin))) { /* pipe is used */
-			quiet_print ("Sending commands from stdin...\n");
+			print (quiet, 0, "Sending commands from stdin...\n");
 			
 			char line[1024];
 			while (!feof (stdin) && fgets (line, 1024, stdin)) {
@@ -212,7 +214,7 @@ on_ready ()
 	/* there's no way to know if a response is a single packet or several.
 		so we send an extra packetwith different ID so we can know
 		where response ends. */
-	send_packet (RCON_END_ID, RCON_OUT_EXEC, "echo end");
+	send_packet (RCON_END_ID, RCON_OUT_EXEC, "");
 }
 
 
@@ -224,21 +226,21 @@ process_response ()
 	
 	ret = recv_packet (&id, &type, text);
 	if (ret == 0) {
-		rl_print ("Connection closed\n");
+		print (quiet, 1, "Connection closed\n");
 		running = 0;
 		return;
 	} else if (ret == -1) {
-		rl_print ("Error while recieveing: %s\n", strerror (errno));
+		print (quiet, 1, "Error while recieveing: %s\n", strerror (errno));
 		running = 0;
 		return;
 	}
 	
 	if (type == RCON_IN_AUTH) {
 		if (id == -1) {
-			rl_print ("Authentication attempt failed\n");
+			print (quiet, 1, "Authentication attempt failed\n");
 			running = 0;
 		} else {
-			rl_print ("Successfully authenticated.\n");
+			print (quiet, 1, "Successfully authenticated.\n");
 			on_ready ();
 		}
 	} else if (type == RCON_IN_RESPONSE) {
@@ -248,7 +250,7 @@ process_response ()
 		}
 		
 		if (*text)
-			rl_print (text);
+			print (0, 1, text);
 	}
 }
 
@@ -326,12 +328,12 @@ interactive_mode ()
 				process_response ();
 			
 			if (fds[1].revents & POLLERR) {
-				rl_print ("POLLERR: An error has occured on the device or stream.\n");
+				print (quiet, 1, "POLLERR: An error has occured on the device or stream.\n");
 				running = 0;
 			}
 			
 			if (fds[1].revents & POLLHUP) {
-				rl_print ("POLLHUP: The device has been disconnected.\n");
+				print (quiet, 1, "POLLHUP: The device has been disconnected.\n");
 				running = 0;
 			}
 			
@@ -341,7 +343,7 @@ interactive_mode ()
 				running = 0;
 		} else if (ret == -1) {
 			if (ret != EINTR)
-				printf ("A poll error has accured: %s\n", strerror (errno));
+				print (quiet, 1, "A poll error has accured: %s\n", strerror (errno));
 		}
 	}
 	
@@ -366,17 +368,17 @@ query_mode ()
 				process_response ();
 			
 			if (fd.revents & POLLERR) {
-				quiet_print ("POLLERR: An error has occured on the device or stream.\n");
+				print (quiet, 1, "POLLERR: An error has occured on the device or stream.\n");
 				running = 0;
 			}
 			
 			if (fd.revents & POLLHUP) {
-				quiet_print ("POLLHUP: The device has been disconnected.\n");
+				print (quiet, 1, "POLLHUP: The device has been disconnected.\n");
 				running = 0;
 			}
 		} else if (ret == -1) {
 			if (ret != EINTR)
-				quiet_print ("A poll error has accured: %s\n", strerror (errno));
+				print (quiet, 1, "A poll error has accured: %s\n", strerror (errno));
 		}
 	}	
 }
@@ -470,10 +472,10 @@ main (int argc, char **argv)
 		query_mode ();
 	}
 	
-	quiet_print ("Disconnecting... ");
+	print (quiet, 0, "Disconnecting... ");
 	fflush (stdout);
 	close (sock);
-	quiet_print ("done.\n");
+	print (quiet, 0, "done.\n");
 	
 	return EXIT_SUCCESS;
 }

@@ -6,32 +6,45 @@ a valve source engine server with the rcon protocol.
 
 To compile it, just type 'make'
 
+
 Usage: srcon <options> <host>[:<port>]
-	-p <password>
-	-v for version information
-	-h for help
-	-c <commands>
-	-i interactive mode
-	-t <color code>
+	-p <password>		server rcon password
+	-v			version information
+	-h			some help about options
+	-c <commands>		commands to send on startup
+	-i			interactive shell mode
+	-t <color code>		shell prompt color
+	-q			only print server responses
+
 
 Option -p  <password> is mandatory.
 
-If -i is not specified, query mode is active.
+The interactive (-i) mode allows you to login, send as many commands
+as you want to, and logout (with 'logout' commnad). If -i is not specified,
+query mode is active.
+
+The query mode is mainly intended for scripts. It connects to a server,
+sends all the commands provided by command line or standard input,
+waits for response and prints it into stdout, and then automatically
+disconnects. By default query mode outputs info messages. If you only
+need server response, use -q option.
 
 You can use -c option and stdin pipe together. Commands from -c option
 are sent first.
 
-Color code is like '0;31', '1;33' and so on, in quotes.
+Color code must be your system shell colors, like '0;31', '1;33'.
+Because ; is a command separator, value must be quoted.
 
 Running in interactive mode with a pipe will still send all commands
 from stdin, but will cause srcon to disconnect immediately.
+
 
 Examples
 	Start as an interactive rcon shell:
 	srcon -i -p example-password example.com:27015
 	
 	Run with commands, for instance in scripts:
-	srcon -c 'sv_cheats 1' -p example-password example.com:27015
+	srcon -q -c 'sv_cheats 1' -p example-password example.com:27015
 	
 	Run with commands from pipe:
 	cat srcds_work | srcon -p example-password example.com:27015

@@ -6,6 +6,7 @@ srcon (1.0.5)
   * Fixed piping
   * Added color option for interactive mode prompt (-t)
   * Removed confirm request about exit/quit commands
+  * Added quiet output mode
 
 srcon (1.0.4)
   * Added command line parameters
