@@ -20,11 +20,11 @@ Usage: srcon <options> <host>[:<port>]
 Option -p  <password> is mandatory.
 
 The interactive (-i) mode allows you to login, send as many commands
-as you want to, and logout (with 'logout' commnad). If -i is not specified,
+as you want to, and logout (with 'logout' command). If -i is not specified,
 query mode is active.
 
 The query mode is mainly intended for scripts. It connects to a server,
-sends all the commands provided by command line or standard input,
+sends all the commands provided by command line and standard input,
 waits for response and prints it into stdout, and then automatically
 disconnects. By default query mode outputs info messages. If you only
 need server response, use -q option.
@@ -32,7 +32,7 @@ need server response, use -q option.
 You can use -c option and stdin pipe together. Commands from -c option
 are sent first.
 
-Color code must be your system shell colors, like '0;31', '1;33'.
+Color code must be one of your system shell colors, like '0;31', '1;33'.
 Because ; is a command separator, value must be quoted.
 
 Running in interactive mode with a pipe will still send all commands
