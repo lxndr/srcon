@@ -7,6 +7,7 @@ srcon (1.0.5)
   * Added color option for interactive mode prompt (-t)
   * Removed confirm request about exit/quit commands
   * Added quiet output mode
+  * History is now stored and loaded
 
 srcon (1.0.4)
   * Added command line parameters
