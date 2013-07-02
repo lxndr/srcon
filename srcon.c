@@ -90,45 +90,42 @@ print (int quiet, int inside_readline, const char *fmt, ...)
 
 
 static void
-parse_address (const char *addr, char *host, int maxhost, uint16_t *port)
+parse_address (const char *addr, char *node, int maxlen, char **port)
 {
 	int len;
 	char *f = strchr (addr, ':');
 	len = f ? f - addr : strlen (addr);
-	if (len > maxhost - 1)
-		len = maxhost - 1;
-	strncpy (host, addr, len);
-	host[len] = 0;
-	*port = f ? atoi (f + 1) : 27015;
+	if (len > maxlen - 1)
+		len = maxlen - 1;
+	strncpy (node, addr, len);
+	node[len] = 0;
+	*port = f ? (f + 1) : "27015";
 }
 
 
 static int
-establish_connection (const char *host, uint16_t port)
+establish_connection (const char *node, const char *service)
 {
-	print (quiet, 0, "Connecting to %s:%d... ", host, port);
+	print (quiet, 0, "Connecting to %s:%s... ", node, service);
 	fflush (stdout);
 	
-	struct hostent *hp = gethostbyname (host);
-	if (!hp) {
+	struct addrinfo *res = NULL;
+	int ret = getaddrinfo (node, service, NULL, &res);
+	if (ret != 0) {
 		print (quiet, 0, "FAILED!\n");
-		print (quiet, 0, "Unknown address %s:%d\n", host, port);
+		print (quiet, 0, "Could not resolve the address: %s\n", gai_strerror (ret));
 		return 0;
 	}
 	
-	struct sockaddr_in addr;
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons (port);
-	addr.sin_addr = * (struct in_addr *) hp->h_addr_list[0];
+	sock = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
 	
-	sock = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	
-	if (connect (sock, (struct sockaddr *) &addr, sizeof (addr)) == -1) {
+	if (connect (sock, res->ai_addr, res->ai_addrlen) == -1) {
 		print (quiet, 0, "FAILED!\n");
 		print (quiet, 0, "Could not connect to the server: %s\n", strerror (errno));
 		return 0;
 	}
 	
+	freeaddrinfo (res);
 	print (quiet, 0, "done.\n");
 	return 1;
 }
@@ -251,8 +248,13 @@ process_response ()
 			return;
 		}
 		
-		if (*text)
+		if (*text) {
 			print (0, 1, text);
+			
+			size_t len = strlen (text);
+			if (text[len - 1] != '\n')
+				print (0, 1, "\n");
+		}
 	}
 }
 
@@ -290,9 +292,9 @@ handle_line (char* line)
 
 
 static void
-form_prompt (const char *host, uint16_t port, const char *color)
+form_prompt (const char *host, const char *port, const char *color)
 {
-	asprintf (&prompt, "\033[%smrcon@\033[0m%s:%d \033[%sm>\033[0m ",
+	asprintf (&prompt, "\033[%smrcon@\033[0m%s:%s \033[%sm>\033[0m ",
 		color, host, port, color);
 }
 
@@ -459,7 +461,7 @@ main (int argc, char **argv)
 	
 	/* connection */
 	char host[128];
-	uint16_t port;
+	char *port;
 	parse_address (address, host, 128, &port);
 	if (!establish_connection (host, port))
 		return EXIT_FAILURE;
